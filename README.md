@@ -7,6 +7,10 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Laravel 11 + Vue 3 + Bootstrap 5 CRUD Application
+
+This repository contains a basic CRUD application built with Laravel 11, Vue 3, and Bootstrap 5. This guide will walk you through the installation process to set up the project.
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
