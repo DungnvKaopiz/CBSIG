@@ -1,150 +1,165 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# CBSIG Project
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Dự án được tách thành 2 phần riêng biệt: Backend (Laravel) và Frontend (Vue.js).
 
-## Laravel 11 + Vue 3 + Bootstrap 5 CRUD Application
+## Cấu trúc dự án
 
-This repository contains a basic CRUD application built with Laravel 11, Vue 3, and Bootstrap 5. This guide will walk you through the installation process to set up the project.
+```
+CBSIG/
+├── backend/          # Laravel API Backend
+│   ├── app/
+│   ├── config/
+│   ├── database/
+│   ├── public/
+│   ├── resources/
+│   ├── routes/
+│   ├── storage/
+│   ├── tests/
+│   ├── vendor/
+│   ├── docker/
+│   └── Dockerfile
+│
+├── frontend/         # Vue.js Frontend
+│   ├── src/
+│   │   ├── js/
+│   │   ├── css/
+│   │   └── sass/
+│   ├── public/
+│   ├── node_modules/
+│   ├── package.json
+│   ├── vite.config.js
+│   └── Dockerfile
+│
+└── docker-compose.yml
+```
 
-## About Laravel
+## Yêu cầu
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+-   Docker
+-   Docker Compose
 
--   [Simple, fast routing engine](https://laravel.com/docs/routing).
--   [Powerful dependency injection container](https://laravel.com/docs/container).
--   Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
--   Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
--   Database agnostic [schema migrations](https://laravel.com/docs/migrations).
--   [Robust background job processing](https://laravel.com/docs/queues).
--   [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Cài đặt và chạy
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+**📖 Xem hướng dẫn chi tiết các lệnh theo thứ tự trong file [SETUP.md](./SETUP.md)**
 
-## Learning Laravel
+### Tóm tắt nhanh
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+```bash
+# 1. Cấu hình backend
+cd backend && cp .env.example .env && cd ..
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+# 2. Build và chạy Docker
+docker-compose up -d --build
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+# 3. Cài đặt backend dependencies
+docker exec -it laravel_backend composer install
+docker exec -it laravel_backend php artisan key:generate
+docker exec -it laravel_backend php artisan migrate
 
-## Installation Steps
+# 4. Cài đặt frontend dependencies
+docker exec -it laravel_frontend npm install
 
-1.  Clone the Repository
-    First, clone the repository to your local machine:
+# 5. Truy cập: http://localhost:8000
+```
 
-        git clone https://github.com/kishanbusa4u/Laravel11Vue3.git
-        cd Laravel11Vue3
+Các services sẽ được khởi động:
 
-2.  Install PHP Dependencies
-    Run the following command to install all PHP dependencies:
+-   **Backend**: Laravel API (PHP-FPM)
+-   **Frontend**: Vue.js với Vite dev server (port 5173)
+-   **Nginx**: Reverse proxy (port 8000)
+-   **MySQL**: Database (port 3306)
+-   **Redis**: Cache (port 6379)
 
-        composer install
+### Truy cập ứng dụng
 
-3.  Install JavaScript Dependencies
-    Next, install the JavaScript dependencies, including Vue 3 and Bootstrap 5:
+-   **Frontend**: http://localhost:8000
+-   **Backend API**: http://localhost:8000/api
+-   **Frontend Dev Server (trực tiếp)**: http://localhost:5173
 
-        npm install
+## Development
 
-4.  Configure the Environment
-    Copy the example .env.example file to create your own .env file:
-    cp .env.example .env
-    Open the .env file and update the following lines with your database credentials and other configuration:
+### Backend (Laravel)
 
-        DB_CONNECTION=mysql
-        DB_HOST=127.0.0.1
-        DB_PORT=3306
-        DB_DATABASE=your_database_name
-        DB_USERNAME=your_database_user
-        DB_PASSWORD=your_database_password
+```bash
+cd backend
 
-5.  Generate Application Key
-    To ensure your application’s security, you need to generate an application key:
+# Install dependencies
+composer install
 
-        php artisan key:generate
+# Generate application key
+php artisan key:generate
 
-6.  Run Database Migrations
-    Run the following command to create the necessary database tables:
+# Run migrations
+php artisan migrate
 
-        php artisan migrate
+# Run seeders
+php artisan db:seed
+```
 
-7.  Compile Frontend Assets
-    Compile the frontend assets (CSS and JavaScript) using Vite:
+### Frontend (Vue.js)
 
-        npm run dev
+```bash
+cd frontend
 
-    For production:
+# Install dependencies
+npm install
 
-        npm run build
+# Run dev server
+npm run dev
 
-8.  Serve the Application
-    You can now run the application locally using the following command:
+# Build for production
+npm run build
+```
 
-        php artisan serve
+## Docker Services
 
-By default, the application will be accessible at http://127.0.0.1:8000.
+### Backend Service
 
-9.  Vue 3 Setup
-    Vue 3 is already integrated into the project using vite for asset bundling. Vue files are located in the resources/js directory.
-    Make sure your resources/js/app.js looks like this:
+-   **Container**: `laravel_backend`
+-   **Image**: Custom PHP 8.2-FPM
+-   **Working Directory**: `/var/www/html`
+-   **Port**: 9000 (internal)
 
-         import { createApp } from 'vue';
-         import App from './components/App.vue';
+### Frontend Service
 
-// Import Bootstrap CSS
+-   **Container**: `laravel_frontend`
+-   **Image**: Node.js 20 Alpine
+-   **Working Directory**: `/app`
+-   **Port**: 5173 (exposed)
 
-        import 'bootstrap/dist/css/bootstrap.min.css';
+### Nginx Service
 
-// Optional: Import Bootstrap JS (for features like modals and tooltips)
+-   **Container**: `laravel_nginx`
+-   **Image**: Nginx Alpine
+-   **Port**: 8000 (exposed)
+-   **Config**: Routes `/api` to backend, `/` to frontend
 
-    import 'bootstrap/dist/js/bootstrap.bundle.min.js';
-    createApp(App).mount('#app');
+### MySQL Service
 
-The entry point for Vue components is in the Blade template located in resources/views/welcome.blade.php:
+-   **Container**: `laravel_mysql`
+-   **Image**: MySQL 8.0
+-   **Port**: 3306 (exposed)
+-   **Database**: `laravel`
+-   **User**: `laravel`
+-   **Password**: `root`
 
-    <div id="app"></div>
+### Redis Service
 
-Make sure the @vite directive is present in welcome.blade.php:
+-   **Container**: `laravel_redis`
+-   **Image**: Redis Alpine
+-   **Port**: 6379 (exposed)
 
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+## Cấu hình Nginx
 
-## Laravel Sponsors
+Nginx được cấu hình để:
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+-   Route `/api/*` đến Laravel backend
+-   Route `/` đến Vue.js frontend (Vite dev server)
+-   Hỗ trợ WebSocket cho HMR (Hot Module Replacement)
 
-### Premium Partners
+## Lưu ý
 
--   **[Vehikl](https://vehikl.com/)**
--   **[Tighten Co.](https://tighten.co)**
--   **[WebReinvent](https://webreinvent.com/)**
--   **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
--   **[64 Robots](https://64robots.com)**
--   **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
--   **[Cyber-Duck](https://cyber-duck.co.uk)**
--   **[DevSquad](https://devsquad.com/hire-laravel-developers)**
--   **[Jump24](https://jump24.co.uk)**
--   **[Redberry](https://redberry.international/laravel/)**
--   **[Active Logic](https://activelogic.com)**
--   **[byte5](https://byte5.de)**
--   **[OP.GG](https://op.gg)**
-
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+-   Backend và Frontend hoàn toàn tách biệt
+-   Frontend giao tiếp với Backend qua API (`/api/*`)
+-   Backend chỉ phục vụ API endpoints, không còn phục vụ frontend assets
+-   Frontend có thể chạy độc lập hoặc thông qua Nginx reverse proxy
