@@ -12,6 +12,16 @@
           </span>
         </div>
         
+        <!-- Theme toggle button -->
+        <button 
+          class="theme-toggle me-3" 
+          @click="toggleTheme" 
+          :aria-label="currentTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+        >
+          <Sun v-if="currentTheme === 'dark'" :size="18" />
+          <Moon v-else :size="18" />
+        </button>
+        
         <!-- Logout button -->
         <button 
           class="btn btn-outline-danger btn-sm" 
@@ -27,12 +37,19 @@
 </template>
 
 <script>
+import { Sun, Moon } from 'lucide-vue-next';
 import { useAuth } from '@/composables/useAuth';
+import { useTheme } from '@/composables/useTheme';
 
 export default {
   name: 'Header',
+  components: {
+    Sun,
+    Moon,
+  },
   setup() {
     const { user, loading, logout } = useAuth();
+    const { toggleTheme, currentTheme } = useTheme();
 
     const handleLogout = async () => {
       if (confirm('Are you sure you want to logout?')) {
@@ -46,6 +63,8 @@ export default {
       user,
       loading,
       handleLogout,
+      toggleTheme,
+      currentTheme,
     };
   },
 };
@@ -54,6 +73,39 @@ export default {
 <style scoped>
 .navbar {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background-color: var(--bg-primary) !important;
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.navbar-brand {
+  color: var(--text-primary) !important;
+}
+
+.text-muted {
+  color: var(--text-secondary) !important;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+}
+
+.theme-toggle:hover {
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+  background-color: var(--bg-secondary);
 }
 </style>
 

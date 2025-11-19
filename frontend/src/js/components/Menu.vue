@@ -3,8 +3,14 @@
     <!-- Sidebar Navigation -->
     <aside :class="['menu-sidebar', { collapsed: isCollapsed }]">
       <div class="sidebar-header">
-        <button class="collapse-toggle" @click="isCollapsed = !isCollapsed" :aria-label="isCollapsed ? 'Expand menu' : 'Collapse menu'">
-          <span class="toggle-icon" :class="{ rotated: isCollapsed }">❮</span>
+        <button 
+          class="collapse-toggle" 
+          @click="handleToggleCollapse" 
+          :disabled="activeTab === 'multiframe'"
+          :aria-label="isCollapsed ? 'Expand menu' : 'Collapse menu'"
+          :class="{ disabled: activeTab === 'multiframe' }"
+        >
+          <ChevronLeft :size="20" class="toggle-icon" :class="{ rotated: isCollapsed }" />
         </button>
       </div>
       <nav class="menu-nav-vertical">
@@ -23,78 +29,74 @@
 
     <!-- Content Area -->
     <main class="menu-content">
-      <ScreenTab v-if="activeTab === 'screen'" />
-      <SolutionsTab v-if="activeTab === 'solutions'" />
+      <DashboardTab v-if="activeTab === 'dashboard'" />
+      <TemplateTab v-if="activeTab === 'template'" />
+      <ContentTab v-if="activeTab === 'content'" />
       <ScheduleTab v-if="activeTab === 'schedule'" />
       <ControlTab v-if="activeTab === 'control'" />
+      <DeviceTab v-if="activeTab === 'devices'" />
+      <MultiFrameTab v-if="activeTab === 'multiframe'" />
     </main>
   </div>
 </template>
 
 <script>
-import { ref } from 'vue';
-import ScreenTab from './menu/ScreenTab.vue';
-import SolutionsTab from './menu/SolutionsTab.vue';
+import { ref, watch } from 'vue';
+import { Monitor, Play, Calendar, Menu as MenuIcon, FileText, ChevronLeft, Film, LayoutDashboard, Layout } from 'lucide-vue-next';
 import ScheduleTab from './menu/ScheduleTab.vue';
 import ControlTab from './menu/ControlTab.vue';
-
-// Navigation Tab Icons
-const MonitorIcon = {
-  template: `
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-    </svg>
-  `
-};
-
-const PlayIcon = {
-  template: `
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  `
-};
-
-const CalendarIcon = {
-  template: `
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-    </svg>
-  `
-};
-
-const MenuIcon = {
-  template: `
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-    </svg>
-  `
-};
+import TemplateTab from './menu/TemplateTab.vue';
+import ContentTab from './menu/ContentTab.vue';
+import DashboardTab from './menu/DashboardTab.vue';
+import DeviceTab from './menu/DeviceTab.vue';
+import MultiFrameTab from './menu/MultiFrameTab.vue';
 
 export default {
   name: 'Menu',
   components: {
-    ScreenTab,
-    SolutionsTab,
+    DashboardTab,
     ScheduleTab,
     ControlTab,
+    TemplateTab,
+    ContentTab,
+    ChevronLeft,
+    DeviceTab,
+    MultiFrameTab,
   },
   setup() {
-    const activeTab = ref('screen');
+    const activeTab = ref('dashboard');
     const isCollapsed = ref(false);
 
     const tabs = [
-      { id: 'screen', label: 'Screens', icon: MonitorIcon },
-      { id: 'solutions', label: 'Solutions', icon: PlayIcon },
-      { id: 'schedule', label: 'Schedule', icon: CalendarIcon },
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'devices', label: 'Devices', icon: Monitor },
+      { id: 'schedule', label: 'Schedule', icon: Calendar },
       { id: 'control', label: 'Control', icon: MenuIcon },
+      { id: 'content', label: 'Content', icon: Film },
+      { id: 'template', label: 'Templates', icon: FileText },
+      { id: 'multiframe', label: 'Multi-Frame', icon: Layout },
     ];
+
+    // Auto collapse when switching to multiframe tab
+    watch(activeTab, (newTab) => {
+      if (newTab === 'multiframe') {
+        isCollapsed.value = true;
+      }
+    });
+
+    // Handle toggle collapse - prevent expand when on multiframe tab
+    const handleToggleCollapse = () => {
+      if (activeTab.value === 'multiframe') {
+        return; // Do nothing when on multiframe tab
+      }
+      isCollapsed.value = !isCollapsed.value;
+    };
 
     return {
       activeTab,
       isCollapsed,
       tabs,
+      handleToggleCollapse,
     };
   },
 };
@@ -104,17 +106,18 @@ export default {
 .menu-container {
   display: flex;
   min-height: calc(100vh - 80px);
-  background-color: #2d2d2d;
-  color: #ffffff;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .menu-sidebar {
   display: flex;
   flex-direction: column;
   width: 240px;
-  background-color: #1e1e1e;
-  border-right: 2px solid #3d3d3d;
-  transition: width 0.25s ease;
+  background-color: var(--bg-primary);
+  border-right: 2px solid var(--border-color);
+  transition: width 0.25s ease, background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .menu-sidebar.collapsed {
@@ -125,8 +128,10 @@ export default {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 8px;
   padding: 12px;
-  border-bottom: 1px solid #3d3d3d;
+  border-bottom: 1px solid var(--border-color);
+  transition: border-color 0.3s ease;
 }
 
 .collapse-toggle {
@@ -135,22 +140,28 @@ export default {
   gap: 8px;
   padding: 8px 10px;
   background: transparent;
-  border: 1px solid #3d3d3d;
-  color: #bbb;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
   cursor: pointer;
   border-radius: 6px;
   transition: all 0.2s ease;
 }
 
-.collapse-toggle:hover {
-  color: #fff;
-  border-color: #4b4b4b;
-  background-color: #2a2a2a;
+.collapse-toggle:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--border-color);
+  background-color: var(--bg-secondary);
+}
+
+.collapse-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .toggle-icon {
   display: inline-block;
   transition: transform 0.2s ease;
+  flex-shrink: 0;
 }
 
 .toggle-icon.rotated {
@@ -171,7 +182,7 @@ export default {
   padding: 12px 14px;
   background: transparent;
   border: none;
-  color: #999;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.3s ease;
   border-left: 3px solid transparent;
@@ -180,20 +191,21 @@ export default {
 }
 
 .nav-item:hover {
-  color: #fff;
-  background-color: #2d2d2d;
+  color: var(--text-primary);
+  background-color: var(--bg-secondary);
 }
 
 .nav-item.active {
   color: #3b82f6;
   border-left-color: #3b82f6;
-  background-color: #2d2d2d;
+  background-color: var(--bg-secondary);
 }
 
 .nav-icon {
   width: 20px;
   height: 20px;
   stroke: currentColor;
+  flex-shrink: 0;
 }
 
 .nav-label {
@@ -218,7 +230,7 @@ export default {
   .menu-sidebar {
     width: 100% !important;
     border-right: none;
-    border-bottom: 2px solid #3d3d3d;
+    border-bottom: 2px solid var(--border-color);
   }
   .menu-sidebar.collapsed {
     width: 100% !important;
@@ -244,7 +256,7 @@ export default {
   }
   .menu-content {
     padding: 16px;
-    min-height: auto; /* avoid double scroll on small screens */
+    min-height: auto;
   }
 }
 </style>

@@ -8,12 +8,25 @@ import './bootstrap';
 import { createApp } from 'vue';
 import AppWrapper from './components/AppWrapper.vue';
 import 'bootstrap/dist/css/bootstrap.min.css';
+import '../css/app.css'; // Import app.css for theme variables
+import VueApexCharts from 'vue3-apexcharts';
+// Import theme initialization early
+import { useTheme } from './composables/useTheme';
+
+/**
+ * Initialize theme before mounting app
+ */
+const { setTheme } = useTheme();
+const savedTheme = localStorage.getItem('app-theme') || 'dark';
+setTheme(savedTheme);
 
 /**
  * Create Vue application instance with AppWrapper
  * AppWrapper will handle authentication check and redirect
  */
-createApp(AppWrapper).mount('#app');
+const app = createApp(AppWrapper);
+app.use(VueApexCharts);
+app.mount('#app');
 
 //import ExampleComponent from './components/ExampleComponent.vue';
 //app.component('example-component', ExampleComponent);

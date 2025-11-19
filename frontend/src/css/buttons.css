@@ -1,0 +1,18 @@
+/* Primary Button Styles */
+:root {
+  --primary-button-bg: #2563eb;
+  --primary-button-hover: #1d4ed8;
+}
+
+.btn-primary {
+  background: var(--primary-button-bg) !important;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-primary:hover {
+  background: var(--primary-button-hover) !important;
+}
+
