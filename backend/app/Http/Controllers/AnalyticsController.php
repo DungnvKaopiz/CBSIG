@@ -33,5 +33,44 @@ class AnalyticsController extends Controller
             'message' => 'Analytics demographics fetched successfully',
         ]);
     }
+
+    // CRUD methods
+    public function index(Request $request)
+    {
+        return response()->json([
+            'message' => 'Analytics logs fetched successfully',
+        ]);
+    }
+
+    public function show(Request $request, $id)
+    {
+        return response()->json([
+            'message' => 'Analytics log fetched successfully',
+            'id' => $id,
+        ]);
+    }
+
+    public function store(Request $request)
+    {
+        return response()->json([
+            'message' => 'Analytics log created successfully',
+        ], 201);
+    }
+
+    public function update(Request $request, $id)
+    {
+        return response()->json([
+            'message' => 'Analytics log updated successfully',
+            'id' => $id,
+        ]);
+    }
+
+    public function destroy(Request $request, $id)
+    {
+        return response()->json([
+            'message' => 'Analytics log deleted successfully',
+            'id' => $id,
+        ]);
+    }
 }
 

@@ -6,38 +6,41 @@ use Illuminate\Http\Request;
 
 class ContentController extends Controller
 {
-    public function getContents(Request $request)
+    public function index(Request $request)
     {
         return response()->json([
             'message' => 'Contents fetched successfully',
         ]);
     }
 
-    public function saveContent(Request $request)
+    public function show(Request $request, $id)
     {
         return response()->json([
-            'message' => 'Content saved successfully',
+            'message' => 'Content fetched successfully',
+            'id' => $id,
         ]);
     }
+
+    public function store(Request $request)
+    {
+        return response()->json([
+            'message' => 'Content created successfully',
+        ], 201);
+    }
     
-    public function updateContent(Request $request, $id)
+    public function update(Request $request, $id)
     {
         return response()->json([
             'message' => 'Content updated successfully',
+            'id' => $id,
         ]);
     }
 
-    public function deleteContent(Request $request, $id)
+    public function destroy(Request $request, $id)
     {
         return response()->json([
             'message' => 'Content deleted successfully',
-        ]);
-    }
-
-    public function downloadContent(Request $request, $id)
-    {
-        return response()->json([
-            'message' => 'Content download initiated successfully',
+            'id' => $id,
         ]);
     }
 }

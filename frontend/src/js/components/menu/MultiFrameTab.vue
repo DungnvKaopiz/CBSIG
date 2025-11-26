@@ -25,7 +25,12 @@
         <!-- Layout List -->
         <div class="section">
           <h3 class="section-title">Layout List</h3>
-          <ul class="list">
+          <p v-if="layoutsError" class="error-message status-message">{{ layoutsError }}</p>
+          <p v-else-if="isLoadingLayouts" class="info-message status-message">Loading layouts...</p>
+          <p v-else-if="!layouts.length" class="empty-message status-message">
+            No layouts yet. Click Add to create one.
+          </p>
+          <ul v-if="layouts.length" class="list">
             <li v-for="layout in layouts" :key="layout.id">
               <button
                 :class="['list-item', { active: selectedLayout?.id === layout.id }]"
@@ -36,14 +41,14 @@
             </li>
           </ul>
           <div class="list-actions">
-            <button class="btn-action" @click="addLayout">
+            <button class="btn-action" @click="addLayout" :disabled="isLoadingLayouts">
               <Plus :size="16" />
               Add
             </button>
             <button
               class="btn-action"
               @click="deleteLayout"
-              :disabled="!selectedLayout || layouts.length <= 1"
+              :disabled="!selectedLayout || layouts.length <= 1 || isLoadingLayouts"
             >
               <Trash2 :size="16" />
               Delete
@@ -65,7 +70,6 @@
               <input
                 type="text"
                 v-model="selectedLayout.name"
-                @input="updateLayoutName"
                 class="form-input"
               />
             </div>
@@ -80,7 +84,6 @@
                 <input
                   type="text"
                   v-model="selectedFrame.name"
-                  @input="updateFrameName"
                   class="form-input"
                 />
               </div>
@@ -237,17 +240,22 @@
       </div>
       <!-- Bottom Actions -->
       <div class="bottom-actions">
-        <button class="btn-primary" @click="save">Save</button>
-        <button class="btn-secondary" @click="close">Close</button>
+        <div v-if="error" class="error-message">{{ error }}</div>
+        <div v-if="successMessage" class="success-message">{{ successMessage }}</div>
+        <button class="btn-primary" @click="save" :disabled="isLoading">
+          {{ isLoading ? 'Saving...' : 'Save' }}
+        </button>
+        <button class="btn-secondary" @click="close" :disabled="isLoading">Close</button>
       </div>
     </div>
   </div>
 </template>
 
 <script>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-vue-next';
 import FrameComponent from '../multiframe/MultiFrameFrame.vue';
+import { layoutService } from '@/api/layoutService';
 
 export default {
   name: 'MultiFrameTab',
@@ -262,42 +270,16 @@ export default {
     const canvasRef = ref(null);
     const deviceName = ref('Dev Test');
     const canvasSize = ref({ width: 1280, height: 720 });
+    const isLoading = ref(false);
+    const error = ref(null);
+    const successMessage = ref(null);
+    const isLoadingLayouts = ref(false);
+    const layoutsError = ref(null);
 
     // Layouts and frames state
-    const layouts = ref([
-      {
-        id: '1',
-        name: 'Initial Layout',
-        frames: [
-          {
-            id: 'f1',
-            name: 'Frame 1',
-            x: 0,
-            y: 0,
-            width: 907,
-            height: 240,
-            zIndex: 1,
-            imageFit: 'contain',
-            mediaUrl: null,
-            mediaType: null,
-          },
-          {
-            id: 'f2',
-            name: 'Frame 2',
-            x: 907,
-            y: 0,
-            width: 373,
-            height: 562,
-            zIndex: 2,
-            imageFit: 'contain',
-            mediaUrl: null,
-            mediaType: null,
-          },
-        ],
-      },
-    ]);
+    const layouts = ref([]);
 
-    const selectedLayoutId = ref('1');
+    const selectedLayoutId = ref(null);
     const selectedFrameId = ref(null);
 
     const selectedLayout = computed(() => {
@@ -313,12 +295,21 @@ export default {
     const selectLayout = (id) => {
       selectedLayoutId.value = id;
       selectedFrameId.value = null;
+      const layout = layouts.value.find(l => l.id === id);
+      if (layout) {
+        canvasSize.value = {
+          width: layout.canvas_width ?? layout.canvasWidth ?? 1280,
+          height: layout.canvas_height ?? layout.canvasHeight ?? 720,
+        };
+      }
     };
 
     const addLayout = () => {
       const newLayout = {
-        id: Date.now().toString(),
+        id: `temp-${Date.now()}`,
         name: `Layout ${layouts.value.length + 1}`,
+        canvas_width: canvasSize.value.width,
+        canvas_height: canvasSize.value.height,
         frames: [],
       };
       layouts.value.push(newLayout);
@@ -331,11 +322,9 @@ export default {
       layouts.value.splice(index, 1);
       if (layouts.value.length > 0) {
         selectLayout(layouts.value[0].id);
+      } else {
+        selectedLayoutId.value = null;
       }
-    };
-
-    const updateLayoutName = () => {
-      // Name is already updated via v-model
     };
 
     // Frame operations
@@ -380,10 +369,6 @@ export default {
       }
     };
 
-    const updateFrameName = () => {
-      // Name is already updated via v-model
-    };
-
     const updateFrameProp = (prop, event) => {
       if (!selectedFrame.value) return;
       const value = parseInt(event.target.value) || 0;
@@ -423,9 +408,133 @@ export default {
       }
     };
 
-    const save = () => {
-      console.log('save layout:', selectedLayout.value);
-      // TODO: Save to backend
+    const mapFrameFromApi = (frame, index) => {
+      const metadata = frame.frame_metadata || frame.frameMetadata || {};
+      return {
+        id: frame.id?.toString() || `frame-${Date.now()}-${index}`,
+        name: frame.name || `Frame ${index + 1}`,
+        x: metadata.x ?? 0,
+        y: metadata.y ?? 0,
+        width: metadata.width ?? 200,
+        height: metadata.height ?? 200,
+        zIndex: metadata.z_index ?? metadata.zIndex ?? index + 1,
+        imageFit: metadata.image_fit ?? metadata.imageFit ?? 'contain',
+        mediaUrl: frame.media_url || frame.mediaUrl || null,
+        mediaType: frame.media_type || frame.mediaType || null,
+      };
+    };
+
+    const mapLayoutFromApi = (layout) => {
+      const items = layout.layout_items || layout.layoutItems || [];
+      return {
+        id: layout.id?.toString() || `temp-${Date.now()}`,
+        name: layout.name || 'Untitled Layout',
+        description: layout.description || null,
+        canvas_width: layout.canvas_width ?? layout.canvasWidth ?? 1280,
+        canvas_height: layout.canvas_height ?? layout.canvasHeight ?? 720,
+        frames: items.map((frame, index) => mapFrameFromApi(frame, index)),
+      };
+    };
+
+    const fetchLayouts = async (preferredId = null) => {
+      isLoadingLayouts.value = true;
+      layoutsError.value = null;
+      try {
+        const response = await layoutService.getAll();
+        const layoutData = response.data?.data || response.data || [];
+        const mappedLayouts = layoutData.map(mapLayoutFromApi);
+        layouts.value = mappedLayouts;
+
+        if (mappedLayouts.length > 0) {
+          const target =
+            preferredId && mappedLayouts.find(l => l.id === preferredId)
+              ? preferredId
+              : mappedLayouts[0].id;
+          selectLayout(target);
+        } else {
+          selectedLayoutId.value = null;
+        }
+      } catch (err) {
+        console.error('Error fetching layouts:', err);
+        layoutsError.value = err.response?.data?.message || err.message || 'Failed to fetch layouts';
+        layouts.value = [];
+        selectedLayoutId.value = null;
+      } finally {
+        isLoadingLayouts.value = false;
+      }
+    };
+
+    onMounted(() => {
+      fetchLayouts();
+    });
+
+    const save = async () => {
+      if (!selectedLayout.value) {
+        error.value = 'Please select a layout to save';
+        return;
+      }
+
+      isLoading.value = true;
+      error.value = null;
+      successMessage.value = null;
+
+      try {
+        const layout = selectedLayout.value;
+        const framePayload = layout.frames.map((frame, index) => ({
+          id: frame.id?.toString() || null,
+          name: frame.name,
+          content_id: frame.contentId || null,
+          x: frame.x,
+          y: frame.y,
+          width: frame.width,
+          height: frame.height,
+          z_index: frame.zIndex || index + 1,
+          image_fit: frame.imageFit || 'contain',
+          order_index: index,
+        }));
+
+        const layoutData = {
+          name: layout.name,
+          description: layout.description || null,
+          canvas_width: canvasSize.value.width,
+          canvas_height: canvasSize.value.height,
+          frames: framePayload,
+        };
+
+        const isExistingLayout =
+          layout.id &&
+          !layout.id.toString().startsWith('temp-') &&
+          !isNaN(Number(layout.id));
+
+        let savedLayout;
+
+        if (isExistingLayout) {
+          const response = await layoutService.update(Number(layout.id), layoutData);
+          savedLayout = response.data.data;
+        } else {
+          const response = await layoutService.create(layoutData);
+          savedLayout = response.data.data;
+        }
+
+        // Create layout items (frames)
+        layout.id = savedLayout.id.toString();
+        layout.canvas_width = savedLayout.canvas_width;
+        layout.canvas_height = savedLayout.canvas_height;
+
+        successMessage.value = 'Layout saved successfully!';
+
+        await fetchLayouts(savedLayout.id.toString());
+
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          successMessage.value = null;
+        }, 3000);
+      } catch (err) {
+        console.error('Error saving layout:', err);
+        error.value = err.response?.data?.message || err.message || 'Failed to save layout';
+      } finally {
+        isLoading.value = false;
+      }
     };
 
     const close = () => {
@@ -443,12 +552,10 @@ export default {
       selectLayout,
       addLayout,
       deleteLayout,
-      updateLayoutName,
       selectFrame,
       addFrame,
       deleteFrame,
       updateFrame,
-      updateFrameName,
       updateFrameProp,
       updateFrameImageFit,
       bringForward,
@@ -456,6 +563,12 @@ export default {
       handleCanvasClick,
       save,
       close,
+      isLoading,
+      error,
+      successMessage,
+      isLoadingLayouts,
+      layoutsError,
+      fetchLayouts,
     };
   },
 };
@@ -779,6 +892,46 @@ export default {
 .btn-secondary:hover {
   background-color: var(--bg-hover);
   color: var(--text-primary);
+}
+
+.btn-primary:disabled,
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.error-message {
+  color: #dc2626;
+  font-size: 14px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background-color: rgba(220, 38, 38, 0.1);
+  border-radius: 6px;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+.success-message {
+  color: #16a34a;
+  font-size: 14px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background-color: rgba(22, 163, 74, 0.1);
+  border-radius: 6px;
+  border: 1px solid rgba(22, 163, 74, 0.3);
+}
+
+.info-message {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background-color: rgba(37, 99, 235, 0.1);
+  border-radius: 6px;
+  border: 1px solid rgba(37, 99, 235, 0.3);
+}
+
+.status-message {
+  margin: 0 16px 8px;
 }
 </style>
 

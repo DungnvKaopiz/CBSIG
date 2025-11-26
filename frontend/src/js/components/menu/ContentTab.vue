@@ -29,9 +29,9 @@
           <div v-else class="thumbnail-placeholder">
             <component :is="content.type === 'Video' ? Film : Image" :size="48" class="placeholder-icon" />
           </div>
-          <button class="card-edit" @click.stop="openEditModal(content)">
+          <button class="card-edit" @click.stop="openEffectModal(content)">
             <Pencil :size="14" />
-            <span>Edit</span>
+            <span>Add effects</span>
           </button>
         </div>
         <div class="card-info">
@@ -77,9 +77,9 @@
       </div>
     </div>
 
-    <ContentEditModal
+    <ContentEffectModal
       :open="isEditModalOpen"
-      :content="editingContent"
+      :content="addEffectContent"
       @close="closeEditModal"
       @apply="handleApply"
     />
@@ -91,14 +91,20 @@
       @close="closePlaylistModal"
       @submit="handlePlaylistSubmit"
     />
+    <ContentUploadModal
+      :open="isUploadModalOpen"
+      @close="closeUploadModal"
+      @success="handleUploadSuccess"
+    />
   </div>
 </template>
 
 <script>
 import { ref, computed } from 'vue';
 import { Film, Image as ImageIcon, Pencil } from 'lucide-vue-next';
-import ContentEditModal from './modals/ContentEditModal.vue';
+import ContentEffectModal from './modals/ContentEffectModal.vue';
 import PlaylistCreateModal from './modals/PlaylistCreateModal.vue';
+import ContentUploadModal from './modals/ContentUploadModal.vue';
 
 export default {
   name: 'ContentTab',
@@ -106,8 +112,9 @@ export default {
     Film,
     Image: ImageIcon,
     Pencil,
-    ContentEditModal,
+    ContentEffectModal,
     PlaylistCreateModal,
+    ContentUploadModal,
   },
   setup() {
     const selectedId = ref(null);
@@ -150,24 +157,25 @@ export default {
     };
 
     const isEditModalOpen = ref(false);
-    const editingContent = ref(null);
+    const addEffectContent = ref(null);
     const isPlaylistModalOpen = ref(false);
     const playlistModalMode = ref('create');
     const editingPlaylist = ref(null);
+    const isUploadModalOpen = ref(false);
 
-    const openEditModal = (item) => {
-      editingContent.value = item;
+    const openEffectModal = (item) => {
+      addEffectContent.value = item;
       isEditModalOpen.value = true;
     };
 
     const closeEditModal = () => {
       isEditModalOpen.value = false;
-      editingContent.value = null;
+      addEffectContent.value = null;
     };
 
     const handleApply = (settings) => {
       console.log('Applying edit to content', {
-        contentId: editingContent.value?.id,
+        contentId: addEffectContent.value?.id,
         settings,
       });
       closeEditModal();
@@ -218,7 +226,25 @@ export default {
     };
 
     const uploadContent = () => {
-      console.log('Upload content');
+      isUploadModalOpen.value = true;
+    };
+
+    const closeUploadModal = () => {
+      isUploadModalOpen.value = false;
+    };
+
+    const handleUploadSuccess = (newContent) => {
+      // Map API response to UI format
+      const mappedContent = {
+        id: newContent.id.toString(),
+        title: newContent.name,
+        type: newContent.type === 1 ? 'Video' : newContent.type === 2 ? 'Image' : newContent.type === 4 ? 'YouTube' : 'Unknown',
+        thumbnail: newContent.thumbnail_url || null,
+        url: newContent.file_url,
+      };
+      
+      content.value.push(mappedContent);
+      closeUploadModal();
     };
 
     return {
@@ -227,8 +253,8 @@ export default {
       selectContent,
       uploadContent,
       isEditModalOpen,
-      editingContent,
-      openEditModal,
+      addEffectContent,
+      openEffectModal,
       closeEditModal,
       handleApply,
       playlists,
@@ -241,6 +267,9 @@ export default {
       closePlaylistModal,
       handlePlaylistSubmit,
       getPlaylistContentTitles,
+      isUploadModalOpen,
+      closeUploadModal,
+      handleUploadSuccess,
       Film,
       Image: ImageIcon,
     };

@@ -18,11 +18,10 @@ const client = axios.create({
 // Request interceptor
 client.interceptors.request.use(
   (config) => {
-    // Có thể thêm token, loading indicator, etc.
-    // const token = localStorage.getItem('token');
-    // if (token) {
-    //   config.headers.Authorization = `Bearer ${token}`;
-    // }
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   },
   (error) => {

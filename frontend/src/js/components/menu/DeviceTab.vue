@@ -58,13 +58,28 @@
       </div>
       <select v-model="statusFilter" class="status-filter">
         <option value="all">All Status</option>
-        <option value="online">Online</option>
-        <option value="offline">Offline</option>
+        <option :value="1">Online</option>
+        <option :value="2">Offline</option>
+        <option :value="3">Syncing</option>
+        <option :value="4">Error</option>
+        <option :value="5">Pending</option>
       </select>
     </div>
 
+    <!-- Loading State -->
+    <div v-if="isLoadingDevices" class="loading-state">
+      <div class="loading-spinner"></div>
+      <p>Loading devices...</p>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error && devices.length === 0" class="error-state">
+      <p class="error-message">{{ error }}</p>
+      <button class="retry-button" @click="fetchDevices">Retry</button>
+    </div>
+
     <!-- Device Cards Grid -->
-    <div class="devices-grid">
+    <div v-else class="devices-grid">
       <div
         v-for="device in filteredDevices"
         :key="device.id"
@@ -87,10 +102,10 @@
             <span
               :class="[
                 'status-badge',
-                device.status === 'online' ? 'status-online' : 'status-offline'
+                getStatusClass(device.status)
               ]"
             >
-              {{ device.status }}
+              {{ getStatusLabel(device.status) }}
             </span>
           </div>
 
@@ -114,10 +129,15 @@
         </div>
 
         <div class="device-card-footer">
-          <button class="manage-button" @click="manageDevice(device.id)">
-            <Settings :size="14" class="manage-icon" />
-            <span>Manage</span>
-          </button>
+          <div class="footer-buttons">
+            <button class="manage-button" @click="manageDevice(device.id)">
+              <Settings :size="14" class="manage-icon" />
+              <span>Manage</span>
+            </button>
+            <button class="delete-button" @click="confirmDeleteDevice(device)" title="Delete device">
+              <Trash2 :size="14" class="delete-icon" />
+            </button>
+          </div>
           <label class="toggle-switch">
             <input
               type="checkbox"
@@ -128,7 +148,28 @@
           </label>
         </div>
       </div>
+
+      <!-- Empty State -->
+      <div v-if="!isLoadingDevices && filteredDevices.length === 0" class="empty-state">
+        <Monitor :size="48" class="empty-icon" />
+        <p class="empty-message">
+          {{ devices.length === 0 ? 'No devices found. Add your first device to get started.' : 'No devices match your filters.' }}
+        </p>
+        <button v-if="devices.length === 0" class="add-first-device-button" @click="addDevice">
+          <Plus :size="16" />
+          <span>Add Device</span>
+        </button>
+      </div>
     </div>
+
+    <!-- Add Device Modal -->
+    <DeviceCreateModal
+      :open="showAddDeviceModal"
+      :isLoading="isLoading"
+      :error="error"
+      @close="closeAddDeviceModal"
+      @submit="handleAddDevice"
+    />
 
     <!-- Device Details Modal -->
     <div v-if="selectedDevice" class="modal-overlay" @click="closeModal">
@@ -178,12 +219,10 @@
                 <span
                   :class="[
                     'status-badge',
-                    selectedDevice.status === 'online'
-                      ? 'status-online'
-                      : 'status-offline'
+                    getStatusClass(selectedDevice.status)
                   ]"
                 >
-                  {{ selectedDevice.status }}
+                  {{ getStatusLabel(selectedDevice.status) }}
                 </span>
               </div>
               <div class="info-item">
@@ -211,7 +250,7 @@
 </template>
 
 <script>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import {
   Plus,
   Monitor,
@@ -222,7 +261,10 @@ import {
   Play,
   Settings,
   X,
+  Trash2,
 } from 'lucide-vue-next';
+import DeviceCreateModal from './modals/DeviceCreateModal.vue';
+import { deviceService } from '@/api/deviceService';
 
 export default {
   name: 'DeviceTab',
@@ -236,74 +278,115 @@ export default {
     Play,
     Settings,
     X,
+    Trash2,
+    DeviceCreateModal,
   },
   setup() {
     const searchQuery = ref('');
     const statusFilter = ref('all');
     const selectedDevice = ref(null);
+    const showAddDeviceModal = ref(false);
+    const isLoading = ref(false);
+    const isLoadingDevices = ref(false);
+    const error = ref(null);
 
-    // Mock device data matching the image
-    const devices = ref([
-      {
-        id: '1',
-        name: 'Lobby Display',
-        location: 'Main Lobby',
-        status: 'online',
-        deviceId: 'LG-OLED-001',
-        lastSynced: '2 mins ago',
-        playing: 'Holiday Promotions',
-        enabled: true,
-        powerOn: true,
-        totalRuntime: '12.5h',
-        timeZone: 'EST',
-      },
-      {
-        id: '2',
-        name: 'Conference Room A',
-        location: 'Floor 2',
-        status: 'online',
-        deviceId: 'SAMSUNG-LED-002',
-        lastSynced: '5 mins ago',
-        playing: 'Meeting Schedule',
-        enabled: true,
-        powerOn: true,
-        totalRuntime: '8.2h',
-        timeZone: 'EST',
-      },
-      {
-        id: '3',
-        name: 'Cafeteria Screen',
-        location: 'Ground Floor',
-        status: 'offline',
-        deviceId: 'PHILIPS-LCD-003',
-        lastSynced: '1 hour ago',
-        playing: 'Menu Display',
-        enabled: false,
-        powerOn: false,
-        totalRuntime: '6.1h',
-        timeZone: 'EST',
-      },
-      {
-        id: '4',
-        name: 'Reception Display',
-        location: 'Reception',
-        status: 'online',
-        deviceId: 'SONY-LED-004',
-        lastSynced: '1 min ago',
-        playing: 'Welcome Slideshow',
-        enabled: true,
-        powerOn: true,
-        totalRuntime: '15.3h',
-        timeZone: 'EST',
-      },
-    ]);
+    // Status mapping: 1=online, 2=offline, 3=syncing, 4=error, 5=pending
+    const getStatusLabel = (status) => {
+      const statusMap = {
+        1: 'online',
+        2: 'offline',
+        3: 'syncing',
+        4: 'error',
+        5: 'pending',
+      };
+      return statusMap[status] || 'unknown';
+    };
+
+    const getStatusClass = (status) => {
+      if (status === 1) return 'status-online';
+      if (status === 2) return 'status-offline';
+      if (status === 3) return 'status-syncing';
+      if (status === 4) return 'status-error';
+      if (status === 5) return 'status-pending';
+      return 'status-offline';
+    };
+
+    // Devices from API
+    const devices = ref([]);
+
+    /**
+     * Map API device data to UI format
+     */
+    const mapDeviceToUI = (device) => {
+      return {
+        id: String(device.id),
+        name: device.name,
+        location: device.location || 'Not specified',
+        status: device.status,
+        deviceId: device.device_uid,
+        device_uid: device.device_uid,
+        ip_address: device.ip_address,
+        firmware_version: device.firmware_version,
+        canvas_width: device.canvas_width,
+        canvas_height: device.canvas_height,
+        lastSynced: device.last_seen_at
+          ? formatLastSeen(device.last_seen_at)
+          : 'Never',
+        playing: 'No content', // TODO: Get from schedule/playlist
+        enabled: device.status === 1,
+        powerOn: device.status === 1,
+        totalRuntime: '0h', // TODO: Calculate from analytics
+        timeZone: 'EST', // TODO: Get from device settings
+      };
+    };
+
+    /**
+     * Format last_seen_at timestamp to relative time
+     */
+    const formatLastSeen = (timestamp) => {
+      if (!timestamp) return 'Never';
+      
+      const now = new Date();
+      const lastSeen = new Date(timestamp);
+      const diffMs = now - lastSeen;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins} ${diffMins === 1 ? 'min' : 'mins'} ago`;
+      if (diffHours < 24) return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
+      return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
+    };
+
+    /**
+     * Fetch devices from API
+     */
+    const fetchDevices = async () => {
+      isLoadingDevices.value = true;
+      error.value = null;
+
+      try {
+        const response = await deviceService.getAll();
+        const devicesData = response.data?.data || response.data || [];
+        
+        // Map API data to UI format
+        devices.value = devicesData.map(mapDeviceToUI);
+      } catch (err) {
+        console.error('Error fetching devices:', err);
+        error.value = err.response?.data?.message || err.message || 'Failed to fetch devices';
+        devices.value = []; // Reset to empty array on error
+      } finally {
+        isLoadingDevices.value = false;
+      }
+    };
 
     const totalDevices = computed(() => devices.value.length);
     const onlineDevices = computed(() =>
-      devices.value.filter((d) => d.status === 'online').length
+      devices.value.filter((d) => d.status === 1).length
     );
     const offlineDevices = computed(() =>
-      devices.value.filter((d) => d.status === 'offline').length
+      devices.value.filter((d) => d.status === 2).length
     );
 
     const filteredDevices = computed(() => {
@@ -323,7 +406,7 @@ export default {
       // Filter by status
       if (statusFilter.value !== 'all') {
         filtered = filtered.filter(
-          (device) => device.status === statusFilter.value
+          (device) => device.status === Number(statusFilter.value)
         );
       }
 
@@ -331,8 +414,43 @@ export default {
     });
 
     const addDevice = () => {
-      console.log('Add new device');
-      // Placeholder for future API call
+      showAddDeviceModal.value = true;
+    };
+
+    const closeAddDeviceModal = () => {
+      showAddDeviceModal.value = false;
+      error.value = null; // Clear error when closing modal
+    };
+
+    const handleAddDevice = async (deviceData) => {
+      isLoading.value = true;
+      error.value = null;
+
+      try {
+        const apiData = {
+          device_uid: deviceData.device_uid,
+          name: deviceData.name,
+          location: deviceData.location || null,
+          status: deviceData.status,
+          ip_address: deviceData.ip_address || null,
+          firmware_version: deviceData.firmware_version || null,
+          canvas_width: deviceData.canvas_width,
+          canvas_height: deviceData.canvas_height,
+        };
+
+        const response = await deviceService.create(apiData);
+        const device = response.data.data || null;
+        
+        devices.value.push(device);
+        
+        closeAddDeviceModal();
+        error.value = null;
+      } catch (err) {
+        console.error('Error creating device:', err);
+        error.value = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to create device';
+      } finally {
+        isLoading.value = false;
+      }
     };
 
     const manageDevice = (id) => {
@@ -375,21 +493,61 @@ export default {
       // Placeholder for future API call
     };
 
+    const confirmDeleteDevice = (device) => {
+      if (confirm(`Are you sure you want to delete "${device.name}"? This action cannot be undone.`)) {
+        deleteDevice(device.id);
+      }
+    };
+
+    const deleteDevice = async (deviceId) => {
+      isLoading.value = true;
+      error.value = null;
+
+      try {
+        await deviceService.delete(deviceId);
+        
+        devices.value = devices.value.filter((d) => d.id !== deviceId);
+        
+        closeModal();
+      } catch (err) {
+        console.error('Error deleting device:', err);
+        error.value = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to delete device';
+      } finally {
+        isLoading.value = false;
+      }
+    };
+
+    // Fetch devices when component mounts
+    onMounted(() => {
+      fetchDevices();
+    });
+
     return {
       searchQuery,
       statusFilter,
       devices,
       selectedDevice,
+      showAddDeviceModal,
+      isLoading,
+      isLoadingDevices,
+      error,
       totalDevices,
       onlineDevices,
       offlineDevices,
       filteredDevices,
+      getStatusLabel,
+      getStatusClass,
       addDevice,
+      closeAddDeviceModal,
+      handleAddDevice,
       manageDevice,
       closeModal,
       syncDevice,
       togglePower,
       toggleDevice,
+      confirmDeleteDevice,
+      deleteDevice,
+      fetchDevices,
     };
   },
 };
@@ -683,12 +841,33 @@ export default {
   color: var(--color-white);
 }
 
+.status-syncing {
+  background-color: var(--color-blue, #3b82f6);
+  color: var(--color-white);
+}
+
+.status-error {
+  background-color: var(--color-red, #ef4444);
+  color: var(--color-white);
+}
+
+.status-pending {
+  background-color: var(--color-gray, #6b7280);
+  color: var(--color-white);
+}
+
 .device-card-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding-top: 12px;
   border-top: 1px solid var(--border-subtle);
+}
+
+.footer-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .manage-button {
@@ -711,6 +890,30 @@ export default {
 }
 
 .manage-icon {
+  flex-shrink: 0;
+}
+
+.delete-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--color-red, #ef4444);
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 36px;
+  height: 36px;
+}
+
+.delete-button:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: var(--color-red, #ef4444);
+}
+
+.delete-icon {
   flex-shrink: 0;
 }
 
@@ -980,6 +1183,113 @@ export default {
   .modal-overlay {
     padding: 10px;
   }
+}
+
+/* Loading State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  gap: 16px;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border-color);
+  border-top-color: var(--button-primary-bg);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-state p {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin: 0;
+}
+
+/* Error State */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  gap: 16px;
+}
+
+.error-message {
+  color: var(--color-red, #ef4444);
+  font-size: 14px;
+  text-align: center;
+  margin: 0;
+}
+
+.retry-button {
+  padding: 10px 20px;
+  background: var(--button-primary-bg);
+  color: var(--color-white);
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.retry-button:hover {
+  background: var(--button-primary-hover);
+}
+
+/* Empty State */
+.empty-state {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  gap: 16px;
+  text-align: center;
+}
+
+.empty-icon {
+  color: var(--text-secondary);
+  opacity: 0.5;
+}
+
+.empty-message {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin: 0;
+}
+
+.add-first-device-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--button-primary-bg);
+  color: var(--color-white);
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-top: 8px;
+}
+
+.add-first-device-button:hover {
+  background: var(--button-primary-hover);
 }
 </style>
 
